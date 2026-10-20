@@ -21,7 +21,7 @@ const ICON_TONE = {
 /** KPI tile: sentence-case label, semibold value (auto-compact upstream), optional hint. */
 export function StatTile({ label, value, hint, icon, tone = 'default', loading }: StatTileProps) {
   return (
-    <div className="rounded-xl border border-line bg-surface px-4 py-3.5 shadow-xs">
+    <div role="group" aria-label={label} className="rounded-xl border border-line bg-surface px-4 py-3.5 shadow-xs">
       <div className="flex items-center justify-between gap-2">
         <p className="truncate text-[13px] font-medium text-ink-3">{label}</p>
         {icon && <span className={cn('hidden size-7 shrink-0 place-items-center rounded-lg sm:grid [&_svg]:size-4', ICON_TONE[tone])} aria-hidden>{icon}</span>}
