@@ -50,6 +50,8 @@ export interface MeResponse {
     role: Role;
     permissions: Permission[];
     onboardingCompleted: boolean;
+    /** Technician availability for auto-assignment (own membership). */
+    isAvailable: boolean;
   } | null;
   memberships: MembershipSummary[];
 }

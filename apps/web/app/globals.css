@@ -1,0 +1,161 @@
+@import 'tailwindcss';
+@import 'tw-animate-css';
+
+/*
+ * FixFlow design tokens (light theme only — see docs/UI_DESIGN_SYSTEM.md).
+ * Semantic names keep components independent of raw palette values.
+ * Contrast (WCAG 2.2 AA): ink-2 on canvas 7.2:1, ink-3 on surface 4.8:1, brand on surface 5.2:1.
+ */
+@theme {
+  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, 'SFMono-Regular', monospace;
+
+  /* Surfaces */
+  --color-canvas: #f8fafc;
+  --color-surface: #ffffff;
+  --color-surface-muted: #f1f5f9;
+  --color-surface-sunken: #f6f8fb;
+  --color-overlay: rgb(15 23 42 / 0.32);
+
+  /* Lines */
+  --color-line: #e2e8f0;
+  --color-line-subtle: #edf1f6;
+  --color-line-strong: #cbd5e1;
+
+  /* Text */
+  --color-ink: #0f172a;
+  --color-ink-2: #334155;
+  --color-ink-3: #64748b;
+  --color-ink-4: #94a3b8;
+
+  /* Brand & accents */
+  --color-brand: #2563eb;
+  --color-brand-hover: #1d4ed8;
+  --color-brand-active: #1e40af;
+  --color-brand-soft: #eff6ff;
+  --color-brand-ink: #1d4ed8;
+  --color-teal: #0d9488;
+  --color-teal-ink: #0f766e;
+  --color-teal-soft: #f0fdfa;
+
+  /* Feedback */
+  --color-success: #16a34a;
+  --color-success-ink: #15803d;
+  --color-success-soft: #f0fdf4;
+  --color-warning: #d97706;
+  --color-warning-ink: #b45309;
+  --color-warning-soft: #fffbeb;
+  --color-danger: #dc2626;
+  --color-danger-ink: #b91c1c;
+  --color-danger-soft: #fef2f2;
+
+  /* Shape */
+  --radius-xs: 4px;
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+
+  /* Elevation — restrained, cool-tinted */
+  --shadow-xs: 0 1px 2px 0 rgb(15 23 42 / 0.04);
+  --shadow-sm: 0 1px 2px 0 rgb(15 23 42 / 0.05), 0 1px 3px 0 rgb(15 23 42 / 0.04);
+  --shadow-md: 0 4px 12px -2px rgb(15 23 42 / 0.08), 0 2px 4px -2px rgb(15 23 42 / 0.04);
+  --shadow-lg: 0 16px 40px -12px rgb(15 23 42 / 0.18), 0 4px 12px -4px rgb(15 23 42 / 0.06);
+  --shadow-focus: 0 0 0 3px rgb(37 99 235 / 0.22);
+
+  /* Type scale (app UI is 14px-based) */
+  --text-2xs: 0.6875rem;
+  --text-2xs--line-height: 1rem;
+
+  --animate-fade-in: fade-in 160ms ease-out;
+  --animate-slide-up: slide-up 180ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  --animate-shimmer: shimmer 1.6s ease-in-out infinite;
+
+  @keyframes fade-in {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+  @keyframes slide-up {
+    from { opacity: 0; transform: translateY(4px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes shimmer {
+    0% { background-position: -400px 0; }
+    100% { background-position: 400px 0; }
+  }
+}
+
+@layer base {
+  html {
+    color-scheme: light;
+    -webkit-text-size-adjust: 100%;
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+  body {
+    @apply bg-canvas text-ink font-sans text-sm leading-relaxed;
+    font-feature-settings: 'cv11', 'ss01';
+  }
+  *,
+  ::before,
+  ::after {
+    border-color: var(--color-line);
+  }
+  ::selection {
+    background: rgb(37 99 235 / 0.16);
+  }
+  /* One consistent, highly visible focus indicator for keyboard users. */
+  :focus-visible {
+    outline: 2px solid var(--color-brand);
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+  input:focus-visible,
+  textarea:focus-visible,
+  select:focus-visible,
+  [data-focus-ring='inset']:focus-visible {
+    outline: none;
+  }
+  h1, h2, h3, h4 {
+    @apply text-ink tracking-tight;
+    text-wrap: balance;
+  }
+  p {
+    text-wrap: pretty;
+  }
+  .tabular {
+    font-variant-numeric: tabular-nums;
+  }
+  [hidden] {
+    display: none !important;
+  }
+}
+
+@layer utilities {
+  .skeleton {
+    background-color: var(--color-surface-muted);
+    background-image: linear-gradient(90deg, transparent 0, rgb(255 255 255 / 0.7) 50%, transparent 100%);
+    background-size: 400px 100%;
+    background-repeat: no-repeat;
+    animation: var(--animate-shimmer);
+  }
+  .scrollbar-thin {
+    scrollbar-width: thin;
+    scrollbar-color: var(--color-line-strong) transparent;
+  }
+  .safe-bottom {
+    padding-bottom: max(env(safe-area-inset-bottom), 0px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  ::before,
+  ::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

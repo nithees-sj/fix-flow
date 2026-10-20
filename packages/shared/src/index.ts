@@ -6,6 +6,7 @@ export * from './assignment.js';
 export * from './recurrence.js';
 export * from './display.js';
 export * from './realtime.js';
+export * from './defaults.js';
 export * from './errors.js';
 export * from './api-types.js';
 export * from './schemas/common.js';

@@ -1,0 +1,10 @@
+{
+  "name": "FixFlow",
+  "short_name": "FixFlow",
+  "description": "Maintenance & field service management",
+  "start_url": "/my-work",
+  "display": "standalone",
+  "background_color": "#F8FAFC",
+  "theme_color": "#F8FAFC",
+  "icons": [{ "src": "/icons/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }]
+}

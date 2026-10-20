@@ -40,6 +40,8 @@ export async function slaTargets(tx: Tx, organizationId: string, priority: Prior
 interface CreateContext {
   source?: 'WEB' | 'QR' | 'GUEST_QR' | 'SCHEDULED';
   guest?: { name: string; contact: string };
+  /** Preventive maintenance occurrence (unique per schedule + instant → idempotent generation). */
+  schedule?: { id: string; scheduledFor: Date };
 }
 
 @Injectable()
@@ -128,6 +130,8 @@ export class WorkOrdersService {
         requesterId: ctx.source === 'GUEST_QR' || ctx.source === 'SCHEDULED' ? null : actor.userId,
         guestName: ctx.guest?.name ?? null,
         guestContact: ctx.guest?.contact ?? null,
+        scheduleId: ctx.schedule?.id ?? null,
+        scheduledFor: ctx.schedule?.scheduledFor ?? null,
         cycleStartedAt: now,
         responseDueAt: deadlines.responseDueAt,
         resolutionDueAt: deadlines.resolutionDueAt,

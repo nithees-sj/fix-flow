@@ -116,7 +116,7 @@ export class AuthService {
           memberships: {
             where: { status: 'ACTIVE' },
             orderBy: { createdAt: 'asc' },
-            select: { role: true, organization: { select: { id: true, name: true, slug: true, industry: true, timezone: true, onboardingCompletedAt: true } } },
+            select: { role: true, isAvailable: true, organization: { select: { id: true, name: true, slug: true, industry: true, timezone: true, onboardingCompletedAt: true } } },
           },
         },
       }),
@@ -135,6 +135,7 @@ export class AuthService {
             role: active.role,
             permissions: permissionsFor(active.role),
             onboardingCompleted: !!active.organization.onboardingCompletedAt,
+            isAvailable: active.isAvailable,
           }
         : null,
       memberships: user.memberships.map((m) => ({
