@@ -1,5 +1,4 @@
 export * from './database.js';
 export * from './errors.js';
-export { Prisma, PrismaClient } from '../generated/prisma/client.js';
-export * from '../generated/prisma/enums.js';
-export type * from '../generated/prisma/models.js';
+// Prisma client, namespace, enums and model types (e.g. `Organization`, `WorkOrder`).
+export * from '../generated/prisma/client.js';

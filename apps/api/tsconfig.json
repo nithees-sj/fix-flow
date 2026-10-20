@@ -1,0 +1,16 @@
+{
+  "extends": "@fixflow/config/tsconfig.node.json",
+  "compilerOptions": {
+    "rootDir": ".",
+    "outDir": "dist",
+    "emitDecoratorMetadata": true,
+    "experimentalDecorators": true,
+    "strictPropertyInitialization": false,
+    "noUncheckedIndexedAccess": false,
+    "declaration": false,
+    "declarationMap": false,
+    "incremental": true,
+    "types": ["node", "vitest/globals"]
+  },
+  "include": ["src", "test"]
+}

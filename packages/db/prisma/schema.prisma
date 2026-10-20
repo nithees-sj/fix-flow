@@ -821,7 +821,8 @@ model IdempotencyRecord {
 /// dispatched to BullMQ by the worker (jobId = outbox id, so dispatch is idempotent).
 model OutboxEvent {
   id             String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  organizationId String       @map("organization_id") @db.Uuid
+  /// Null for account-level events (password reset, email verification) — system role only.
+  organizationId String?      @map("organization_id") @db.Uuid
   type           String       @db.VarChar(60)
   aggregateId    String?      @map("aggregate_id") @db.Uuid
   payload        Json         @default("{}")
@@ -832,10 +833,9 @@ model OutboxEvent {
   dispatchedAt   DateTime?    @map("dispatched_at") @db.Timestamptz(3)
   createdAt      DateTime     @default(now()) @map("created_at") @db.Timestamptz(3)
 
-  organization    Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  organization    Organization?   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   emailDeliveries EmailDelivery[]
 
-  @@unique([organizationId, id])
   @@index([status, availableAt])
   @@map("outbox_events")
 }
@@ -843,7 +843,7 @@ model OutboxEvent {
 /// Exactly-once email: one row per (outbox event, recipient), status updated after sending.
 model EmailDelivery {
   id                String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  organizationId    String    @map("organization_id") @db.Uuid
+  organizationId    String?   @map("organization_id") @db.Uuid
   outboxEventId     String    @map("outbox_event_id") @db.Uuid
   recipient         String    @db.VarChar(254)
   template          String    @db.VarChar(60)
@@ -852,8 +852,8 @@ model EmailDelivery {
   sentAt            DateTime? @map("sent_at") @db.Timestamptz(3)
   createdAt         DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
 
-  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  outboxEvent  OutboxEvent  @relation(fields: [organizationId, outboxEventId], references: [organizationId, id], onDelete: Cascade)
+  organization Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  outboxEvent  OutboxEvent   @relation(fields: [outboxEventId], references: [id], onDelete: Cascade)
 
   @@unique([outboxEventId, recipient])
   @@map("email_deliveries")
