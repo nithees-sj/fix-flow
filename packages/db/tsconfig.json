@@ -1,0 +1,10 @@
+{
+  "extends": "@fixflow/config/tsconfig.node.json",
+  "compilerOptions": {
+    "rootDir": ".",
+    "outDir": "dist",
+    "noEmit": true,
+    "noUncheckedIndexedAccess": false
+  },
+  "include": ["src", "generated", "seed", "test", "prisma.config.ts"]
+}

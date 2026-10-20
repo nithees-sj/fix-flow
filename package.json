@@ -1,0 +1,38 @@
+{
+  "name": "fixflow",
+  "private": true,
+  "description": "FixFlow — Intelligent Maintenance & Field Service Management Platform",
+  "packageManager": "pnpm@10.34.7",
+  "engines": {
+    "node": ">=22.12"
+  },
+  "scripts": {
+    "dev": "turbo run dev --filter=@fixflow/api --filter=@fixflow/web",
+    "dev:worker": "pnpm --filter @fixflow/api dev:worker",
+    "build": "turbo run build",
+    "lint": "turbo run lint",
+    "typecheck": "turbo run typecheck",
+    "test": "turbo run test",
+    "test:unit": "turbo run test --filter=@fixflow/shared",
+    "test:integration": "pnpm --filter @fixflow/api test:integration",
+    "test:e2e": "playwright test -c tests/e2e/playwright.config.ts",
+    "qa:screens": "node tests/e2e/visual/capture.mjs",
+    "format": "prettier --write .",
+    "infra:up": "docker compose up -d --wait postgres redis minio mailpit",
+    "infra:stop": "docker compose stop postgres redis minio mailpit",
+    "infra:status": "docker compose ps",
+    "db:roles": "pnpm --filter @fixflow/db roles",
+    "db:migrate": "pnpm db:roles && pnpm --filter @fixflow/db migrate:deploy",
+    "db:migrate:dev": "pnpm --filter @fixflow/db migrate:dev",
+    "db:generate": "pnpm --filter @fixflow/db generate",
+    "db:seed": "pnpm --filter @fixflow/db seed",
+    "db:reset": "node infrastructure/scripts/reset-db.mjs",
+    "db:studio": "pnpm --filter @fixflow/db studio"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.64.1",
+    "prettier": "^3.6.2",
+    "turbo": "2.11.9",
+    "typescript": "~6.0.3"
+  }
+}

@@ -1,0 +1,44 @@
+{
+  "name": "@fixflow/db",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./dist/src/index.js",
+  "types": "./dist/src/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/src/index.d.ts",
+      "default": "./dist/src/index.js"
+    }
+  },
+  "scripts": {
+    "generate": "prisma generate",
+    "build": "prisma generate && tsc -p tsconfig.build.json",
+    "typecheck": "prisma generate && tsc -p tsconfig.json --noEmit",
+    "lint": "eslint .",
+    "roles": "node scripts/apply-roles.mjs",
+    "migrate:dev": "prisma migrate dev",
+    "migrate:deploy": "prisma migrate deploy",
+    "migrate:status": "prisma migrate status",
+    "seed": "node dist/seed/index.js",
+    "studio": "prisma studio",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@fixflow/shared": "workspace:*",
+    "@prisma/adapter-pg": "7.10.1",
+    "@prisma/client": "7.10.1",
+    "dotenv": "^17.2.3",
+    "dotenv-expand": "^12.0.3",
+    "pg": "^8.16.3"
+  },
+  "devDependencies": {
+    "@fixflow/config": "workspace:*",
+    "@types/node": "^24.19.2",
+    "@types/pg": "^8.15.5",
+    "eslint": "^10.13.0",
+    "prisma": "7.10.1",
+    "typescript": "~6.0.3",
+    "vitest": "4.1.12"
+  }
+}
