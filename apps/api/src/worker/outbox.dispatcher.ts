@@ -1,3 +1,4 @@
+import { writeFile } from 'node:fs/promises';
 import { Inject, Injectable, Logger, type OnApplicationShutdown } from '@nestjs/common';
 import type { Queue } from 'bullmq';
 import type { Redis } from 'ioredis';
@@ -78,6 +79,8 @@ export class OutboxDispatcher implements OnApplicationShutdown {
         total += n;
         if (n === BATCH) this.again = true;
       } while (this.again && !this.stopped);
+      // Liveness signal for container health checks: a pass completed against DB + Redis.
+      if (this.env.WORKER_HEARTBEAT_FILE) await writeFile(this.env.WORKER_HEARTBEAT_FILE, new Date().toISOString()).catch(() => undefined);
     } catch (err) {
       this.logger.error({ err }, 'Outbox dispatch failed');
     } finally {

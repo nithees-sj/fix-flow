@@ -32,6 +32,23 @@ x-app-env: &app-env
   COOKIE_SECURE: ${COOKIE_SECURE:-false}
   APP_WEB_URL: ${APP_WEB_URL:-http://localhost:3000}
   CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000}
+  # Production mode refuses insecure cookies unless explicitly acknowledged (local demo only).
+  ALLOW_INSECURE_COOKIES: 'true'
+  # Per-IP limits on sign-in/sign-up. Raise only for automated test runs (docs/TESTING.md).
+  AUTH_RATE_LIMIT_PER_MINUTE: ${AUTH_RATE_LIMIT_PER_MINUTE:-10}
+  SIGNUP_RATE_LIMIT_PER_MINUTE: ${SIGNUP_RATE_LIMIT_PER_MINUTE:-5}
+
+x-app-depends: &app-depends
+  postgres:
+    condition: service_healthy
+  redis:
+    condition: service_healthy
+  minio:
+    condition: service_healthy
+  mailpit:
+    condition: service_healthy
+  migrate:
+    condition: service_completed_successfully
 
 services:
   postgres:
@@ -102,6 +119,93 @@ services:
       interval: 10s
       timeout: 5s
       retries: 10
+
+  # One-shot: roles + grants → prisma migrate deploy → demo seed (SEED_DEMO, default true).
+  # Idempotent and non-destructive — existing data and volumes are never reset.
+  migrate:
+    build:
+      context: .
+      target: migrate
+      args:
+        APP: '@fixflow/db'
+    image: fixflow/migrate:local
+    restart: 'no'
+    depends_on:
+      postgres:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      DATABASE_SUPERUSER_URL: postgresql://postgres:${POSTGRES_SUPERUSER_PASSWORD}@postgres:5432/postgres
+      DATABASE_OWNER_URL: postgresql://fixflow_owner:${FIXFLOW_OWNER_PASSWORD}@postgres:5432/fixflow
+      DATABASE_URL: postgresql://fixflow_app:${FIXFLOW_APP_PASSWORD}@postgres:5432/fixflow
+      DATABASE_SYSTEM_URL: postgresql://fixflow_system:${FIXFLOW_SYSTEM_PASSWORD}@postgres:5432/fixflow
+      FIXFLOW_OWNER_PASSWORD: ${FIXFLOW_OWNER_PASSWORD:?missing}
+      FIXFLOW_APP_PASSWORD: ${FIXFLOW_APP_PASSWORD:?missing}
+      FIXFLOW_SYSTEM_PASSWORD: ${FIXFLOW_SYSTEM_PASSWORD:?missing}
+      SEED_DEMO: ${SEED_DEMO:-true}
+      ALLOW_DEMO_SEED: ${SEED_DEMO:-true}
+      S3_ENDPOINT: http://minio:9000
+      S3_REGION: ${S3_REGION:-us-east-1}
+      S3_BUCKET: ${S3_BUCKET:-fixflow-private}
+      S3_ACCESS_KEY: ${MINIO_ROOT_USER}
+      S3_SECRET_KEY: ${MINIO_ROOT_PASSWORD}
+      S3_FORCE_PATH_STYLE: 'true'
+
+  api:
+    build:
+      context: .
+      target: api
+      args:
+        APP: '@fixflow/api'
+    image: fixflow/api:local
+    restart: unless-stopped
+    environment:
+      <<: *app-env
+      API_PORT: '4000'
+    ports:
+      - '127.0.0.1:${API_PORT:-4000}:4000'
+    depends_on: *app-depends
+
+  # Same image as the API, different entrypoint; scale independently (`--scale worker=2`).
+  worker:
+    build:
+      context: .
+      target: api
+      args:
+        APP: '@fixflow/api'
+    image: fixflow/api:local
+    restart: unless-stopped
+    command: ['node', 'dist/worker.js']
+    environment:
+      <<: *app-env
+      WORKER_HEARTBEAT_FILE: /tmp/fixflow-worker.heartbeat
+    healthcheck:
+      # Healthy while outbox passes (DB + Redis round-trips) keep completing.
+      test: ['CMD', 'node', '-e', "const s=require('fs').statSync(process.env.WORKER_HEARTBEAT_FILE);process.exit(Date.now()-s.mtimeMs<30000?0:1)"]
+      interval: 10s
+      timeout: 5s
+      start_period: 20s
+      retries: 6
+    depends_on: *app-depends
+
+  web:
+    build:
+      context: .
+      target: web
+      args:
+        APP: '@fixflow/web'
+        # Inlined by Next at build time: server-side API target and the browser's realtime URL.
+        API_INTERNAL_URL: http://api:4000
+        NEXT_PUBLIC_REALTIME_URL: ${NEXT_PUBLIC_REALTIME_URL:-http://localhost:4000}
+    image: fixflow/web:local
+    restart: unless-stopped
+    ports:
+      - '127.0.0.1:${WEB_PORT:-3000}:3000'
+    depends_on:
+      api:
+        condition: service_healthy
 
 volumes:
   fixflow_pgdata:

@@ -46,6 +46,8 @@ const envSchema = z.object({
 
   /** Seconds between outbox polls in the worker. */
   OUTBOX_POLL_MS: z.coerce.number().int().min(100).default(2000),
+  /** Worker touches this file after every successful outbox pass (Docker HEALTHCHECK). */
+  WORKER_HEARTBEAT_FILE: z.string().optional(),
   /** Disable background loops in tests that drive them manually. */
   DISABLE_SCHEDULERS: bool.default(false),
 });

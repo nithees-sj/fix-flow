@@ -1,3 +1,4 @@
+import { resolve } from 'node:path';
 import type { NextConfig } from 'next';
 
 const apiInternal = process.env.API_INTERNAL_URL ?? 'http://localhost:4000';
@@ -24,6 +25,8 @@ const csp = [
 
 const nextConfig: NextConfig = {
   output: 'standalone',
+  // Trace from the monorepo root so workspace packages (@fixflow/shared) land in the standalone output.
+  outputFileTracingRoot: resolve(import.meta.dirname, '../..'),
   poweredByHeader: false,
   devIndicators: false,
   agentRules: false,

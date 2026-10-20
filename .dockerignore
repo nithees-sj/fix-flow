@@ -1,0 +1,23 @@
+.git
+**/node_modules
+**/.next
+**/dist
+**/.turbo
+**/coverage
+**/*.tsbuildinfo
+packages/db/generated
+out
+
+# Secrets never enter the build context.
+.env
+.env.*
+!.env.example
+
+test-results
+playwright-report
+tests/e2e/.auth
+tests/e2e/visual/screens
+*.log
+.DS_Store
+.idea
+.vscode

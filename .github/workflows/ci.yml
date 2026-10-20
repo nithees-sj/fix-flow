@@ -1,0 +1,80 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: Lint · typecheck · unit · integration · build
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+
+      # Fresh random secrets for this run only (never committed).
+      - run: node infrastructure/scripts/init-env.mjs
+
+      - run: pnpm lint
+      - run: pnpm typecheck
+
+      # Postgres, Redis, MinIO and Mailpit exactly as in local development.
+      # Tests only ever use the separate fixflow_test database.
+      - run: pnpm infra:up
+      - run: pnpm db:roles
+      - run: pnpm test
+      - run: pnpm test:integration
+
+      - run: pnpm build
+
+  e2e:
+    name: Docker stack · Playwright end-to-end
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: node infrastructure/scripts/init-env.mjs
+
+      # Builds every image and starts the full stack (migrate seeds the demo data).
+      - name: Start stack
+        env:
+          # E2E signs in many times from one IP; production defaults stay strict.
+          AUTH_RATE_LIMIT_PER_MINUTE: '500'
+          SIGNUP_RATE_LIMIT_PER_MINUTE: '500'
+        run: docker compose up -d --build --wait web worker
+
+      - run: pnpm exec playwright install --with-deps chromium
+      - run: pnpm test:e2e
+
+      - name: Stack logs
+        if: failure()
+        run: docker compose logs --no-color api worker web migrate | tail -n 400
+
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-report
+          path: |
+            playwright-report
+            test-results
+          retention-days: 7
