@@ -73,7 +73,7 @@ export function DataTable<T>({
                   scope="col"
                   aria-sort={ariaSort}
                   className={cn(
-                    'sticky top-0 z-[1] whitespace-nowrap border-b border-line bg-surface-sunken px-4 py-2.5 text-xs font-medium text-ink-3 first:pl-5 last:pr-5',
+                    'sticky top-0 z-[1] whitespace-nowrap border-b border-line bg-surface-sunken px-3 py-2.5 text-xs font-medium text-ink-3 first:pl-4 last:pr-4 sm:px-4 sm:first:pl-5 sm:last:pr-5',
                     c.hideBelow && HIDE[c.hideBelow],
                     c.headerClassName,
                   )}
@@ -119,7 +119,7 @@ export function DataTable<T>({
                   <td
                     key={c.key}
                     className={cn(
-                      'border-b border-line-subtle px-4 align-middle text-ink-2 first:pl-5 last:pr-5 group-last:border-b-0',
+                      'border-b border-line-subtle px-3 align-middle text-ink-2 first:pl-4 last:pr-4 group-last:border-b-0 sm:px-4 sm:first:pl-5 sm:last:pr-5',
                       dense ? 'py-2.5' : 'py-3',
                       c.hideBelow && HIDE[c.hideBelow],
                       c.className,

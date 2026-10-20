@@ -309,7 +309,7 @@ export class TransitionsService {
       action: `workOrder.${input.action}`,
       entityType: 'WorkOrder',
       entityId: id,
-      metadata: { from: wo.status, to, reason, ...auditMeta },
+      metadata: { number: wo.number, from: wo.status, to, reason, ...auditMeta },
     });
     if (reschedule) await this.outbox.add(tx, orgId, 'sla.schedule', { workOrderId: id }, id);
 

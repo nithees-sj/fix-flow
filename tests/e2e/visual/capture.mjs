@@ -81,16 +81,33 @@ mkdirSync(OUT, { recursive: true });
 
 const browser = await chromium.launch();
 const results = [];
+// One sign-in per account (respects the API's login rate limit); sessions are reused.
+const states = new Map();
+async function stateFor(who) {
+  if (states.has(who)) return states.get(who);
+  const ctx = await browser.newContext();
+  await signIn(ctx, who);
+  const state = await ctx.storageState();
+  await ctx.close();
+  states.set(who, state);
+  return state;
+}
 for (const [name, path, who] of PAGES) {
   if (filter.length && !filter.some((f) => name.includes(f))) continue;
   for (const vp of viewports) {
-    const context = await browser.newContext({ viewport: VIEWPORTS[vp], deviceScaleFactor: vp === 'mobile' ? 2 : 1, reducedMotion: 'reduce' });
+    let storageState;
+    try {
+      storageState = who ? await stateFor(who) : undefined;
+    } catch (e) {
+      results.push({ name, vp, error: String(e).slice(0, 200) });
+      continue;
+    }
+    const context = await browser.newContext({ viewport: VIEWPORTS[vp], deviceScaleFactor: vp === 'mobile' ? 2 : 1, reducedMotion: 'reduce', storageState });
     const page = await context.newPage();
     const errors = [];
     page.on('pageerror', (e) => errors.push(e.message));
     page.on('console', (m) => m.type() === 'error' && errors.push(m.text()));
     try {
-      if (who) await signIn(context, who);
       await page.goto(`${BASE}${path}`, { waitUntil: 'networkidle', timeout: 45_000 });
       await page.waitForTimeout(600);
       const file = resolve(OUT, `${name}-${vp}.png`);

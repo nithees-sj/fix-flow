@@ -10,7 +10,8 @@
 import { io, type Socket } from 'socket.io-client';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createOrg, testPhoto, type OrgFixture } from './fixtures.js';
-import { resetState, startHarness, type Harness } from './harness.js';
+import request from 'supertest';
+import { Client, resetState, startHarness, type Harness } from './harness.js';
 
 let h: Harness;
 let A: OrgFixture;
@@ -51,6 +52,10 @@ beforeAll(async () => {
   aIds.notification = note.body.data[0].id;
   const session = await h.db.system.session.findFirstOrThrow({ where: { userId: A.admin.userId } });
   aIds.session = session.id;
+  const schedule = await A.manager.client
+    .post('/schedules', { title: 'Alpha filter service', categoryId: A.categories.HVAC, assetId: A.assetId, frequencyUnit: 'MONTH', frequencyInterval: 1, startsAt: new Date().toISOString() })
+    .expect(201);
+  aIds.schedule = schedule.body.id;
 });
 afterAll(async () => h.close());
 
@@ -70,6 +75,7 @@ function paramFor(path: string, param: string): string | undefined {
     members: aIds.membership,
     notifications: aIds.notification,
     profile: aIds.session,
+    schedules: aIds.schedule,
   }[prefix ?? ''];
 }
 
@@ -86,6 +92,7 @@ const BODIES: Record<string, object> = {
   'PATCH /api/v1/checklist-templates/:id': { name: 'pwned template' },
   'PATCH /api/v1/members/:id': { jobTitle: 'pwned' },
   'PUT /api/v1/members/:id/skills': { skills: [] },
+  'PATCH /api/v1/schedules/:id': { active: false },
 };
 const NO_BODY = new Set([
   'GET',
@@ -101,6 +108,7 @@ const NO_BODY = new Set([
   'POST /api/v1/invitations/:id/revoke',
   'POST /api/v1/invitations/:id/resend',
   'POST /api/v1/notifications/:id/read',
+  'POST /api/v1/schedules/:id/run-now',
 ]);
 
 interface RouteDef {
@@ -121,7 +129,8 @@ function registeredRoutes(): RouteDef[] {
 
 describe('(a) route sweep: org B cannot reach org A resources through any parameterized route', () => {
   it('covers every parameterized route and none of them leak', async () => {
-    const routes = registeredRoutes().filter((r) => r.path.includes(':') && !r.path.startsWith('/api/docs'));
+    // Public QR routes are intentionally reachable without membership; covered separately below.
+    const routes = registeredRoutes().filter((r) => r.path.includes(':') && !r.path.startsWith('/api/docs') && !r.path.startsWith('/api/v1/public/'));
     expect(routes.length).toBeGreaterThan(30);
     const missing: string[] = [];
     const failures: string[] = [];
@@ -164,6 +173,9 @@ describe('(a) route sweep: org B cannot reach org A resources through any parame
     expect(asset.name).toBe('Split AC unit');
     const comments = await h.db.system.workOrderComment.count({ where: { workOrderId: aIds.workOrder } });
     expect(comments).toBe(0);
+    const schedule = await h.db.system.maintenanceSchedule.findUniqueOrThrow({ where: { id: aIds.schedule } });
+    expect(schedule.active).toBe(true);
+    expect(await h.db.system.workOrder.count({ where: { scheduleId: aIds.schedule } })).toBe(0);
     const invitation = await h.db.system.invitation.findUniqueOrThrow({ where: { id: aIds.invitation } });
     expect(invitation.revokedAt).toBeNull();
     const session = await h.db.system.session.findUniqueOrThrow({ where: { id: aIds.session } });
@@ -245,5 +257,59 @@ describe('(d) side channels', () => {
       });
     expect(await connect()).toBe(true);
     expect(await connect()).toBe(false);
+  });
+});
+
+describe('public QR reporting', () => {
+  const anon = () => request(h.server);
+  const csrfPost = async (path: string, body: object, c?: Awaited<ReturnType<typeof Client.create>>) => {
+    if (c) return c.post(path, body);
+    const fresh = await Client.create(h);
+    return fresh.post(path, body);
+  };
+
+  it('exposes only the minimal context needed for the form', async () => {
+    const loc = await h.db.system.location.findUniqueOrThrow({ where: { id: A.roomId } });
+    const res = await anon().get(`/api/v1/public/report/${loc.publicReportToken}`).expect(200);
+    expect(Object.keys(res.body).sort()).toEqual(['categories', 'defaultCategoryId', 'organizationName', 'qrReportingMode', 'target']);
+    const text = JSON.stringify(res.body);
+    expect(text).not.toContain(aSecretTitle);
+    expect(text).not.toContain(A.orgId);
+    expect(text).not.toMatch(/@/); // no emails of any person
+  });
+
+  it('unknown or malformed tokens are not found', async () => {
+    await anon().get('/api/v1/public/report/does-not-exist-123456').expect(404);
+    await anon().get('/api/v1/public/report/%27%20OR%201%3D1').expect(404);
+  });
+
+  it('in AUTHENTICATED mode, guests and members of other organizations cannot submit', async () => {
+    const loc = await h.db.system.location.findUniqueOrThrow({ where: { id: A.roomId } });
+    const body = { title: 'Leak in corridor', categoryId: A.categories.Plumbing, guestName: 'Visitor', guestContact: 'v@example.com' };
+    await csrfPost(`/public/report/${loc.publicReportToken}`, body).then((r) => expect(r.status).toBe(401));
+    await csrfPost(`/public/report/${loc.publicReportToken}`, body, B.admin.client).then((r) => expect(r.status).toBe(403));
+    const ok = await csrfPost(`/public/report/${loc.publicReportToken}`, { title: 'Leak in corridor', categoryId: A.categories.Plumbing, priority: 'HIGH' }, A.requester.client);
+    expect(ok.status).toBe(201);
+    const wo = await h.db.system.workOrder.findFirstOrThrow({ where: { organizationId: A.orgId, number: ok.body.workOrderNumber } });
+    expect(wo).toMatchObject({ source: 'QR', requesterId: A.requester.userId, priority: 'HIGH', locationId: A.roomId });
+  });
+
+  it('in PUBLIC mode guests can report, but cannot set priority and must pass the honeypot', async () => {
+    await A.admin.client.patch('/organizations/current/policy', { qrReportingMode: 'PUBLIC' }).expect(200);
+    const asset = await h.db.system.asset.findUniqueOrThrow({ where: { id: A.assetId } });
+    const res = await csrfPost(`/public/report/${asset.publicReportToken}`, { title: 'Strange smell from AC', guestName: 'Visiting parent', guestContact: 'parent@example.com', priority: 'CRITICAL' });
+    expect(res.status).toBe(201);
+    expect(res.body).toMatchObject({ trackable: false });
+    const wo = await h.db.system.workOrder.findFirstOrThrow({ where: { organizationId: A.orgId, number: res.body.workOrderNumber } });
+    expect(wo).toMatchObject({ source: 'GUEST_QR', requesterId: null, priority: 'MEDIUM', assetId: A.assetId, guestName: 'Visiting parent' });
+    const bot = await csrfPost(`/public/report/${asset.publicReportToken}`, { title: 'Buy cheap', guestName: 'Bot', guestContact: 'bot@example.com', website: 'http://spam' });
+    expect(bot.status).toBe(400);
+    await A.admin.client.patch('/organizations/current/policy', { qrReportingMode: 'AUTHENTICATED' }).expect(200);
+  });
+
+  it('rotating a token invalidates printed labels', async () => {
+    const before = await h.db.system.location.findUniqueOrThrow({ where: { id: A.roomId } });
+    await A.admin.client.post(`/locations/${A.roomId}/qr/rotate`).expect(200);
+    await anon().get(`/api/v1/public/report/${before.publicReportToken}`).expect(404);
   });
 });
