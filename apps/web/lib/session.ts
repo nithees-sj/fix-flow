@@ -41,6 +41,8 @@ export function useSignOut() {
     } finally {
       qc.clear();
       await clearOfflineData();
+      // A full page load (not router.push) drops every in-memory cache and socket of the old session.
+      // eslint-disable-next-line @next/next/no-location-assign-relative-destination
       window.location.assign('/sign-in');
     }
   };

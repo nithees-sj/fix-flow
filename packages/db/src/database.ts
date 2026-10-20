@@ -1,5 +1,5 @@
 import { PrismaPg } from '@prisma/adapter-pg';
-import { Prisma, PrismaClient } from '../generated/prisma/client.js';
+import { PrismaClient, type Prisma } from '../generated/prisma/client.js';
 
 /** Authenticated tenant context. Always derived server-side from a verified membership. */
 export interface TenantContext {

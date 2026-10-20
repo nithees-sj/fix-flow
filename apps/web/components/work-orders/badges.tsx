@@ -76,18 +76,21 @@ export const CATEGORY_ICON_MAP: Record<string, LucideIcon> = {
   armchair: Armchair,
   building: Building,
 };
-const iconFor = (name: string): LucideIcon => CATEGORY_ICON_MAP[name] ?? Wrench;
 
 export function CategoryChip({ category, showName = true }: { category: { name: string; color: string; icon: string }; showName?: boolean }) {
-  const I = iconFor(category.icon);
   return (
     <span className="inline-flex min-w-0 items-center gap-1.5 text-[13px] text-ink-2">
       <span className={cn('grid size-6 shrink-0 place-items-center rounded-md', CATEGORY_CHIP[category.color] ?? CATEGORY_CHIP.slate)} aria-hidden>
-        <I className="size-3.5" />
+        <CategoryIcon name={category.icon} />
       </span>
       {showName && <span className="truncate">{category.name}</span>}
     </span>
   );
+}
+
+function CategoryIcon({ name }: { name: string }) {
+  const Icon = CATEGORY_ICON_MAP[name] ?? Wrench;
+  return <Icon className="size-3.5" />;
 }
 
 /** SLA clock: icon + text (never color alone), with the exact due time in a tooltip. */

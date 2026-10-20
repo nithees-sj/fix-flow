@@ -5,7 +5,7 @@ import { LogOut, Menu as MenuIcon, Plus, Search, Settings, UserRound, WifiOff } 
 import { Dialog as D } from 'radix-ui';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useSyncExternalStore } from 'react';
 import { Logo } from '@/components/brand';
 import { Button } from '@/components/ui/button';
 import { Kbd } from '@/components/ui/controls';
@@ -110,20 +110,18 @@ function LiveDot() {
   );
 }
 
+const subscribeOnline = (cb: () => void) => {
+  window.addEventListener('online', cb);
+  window.addEventListener('offline', cb);
+  return () => {
+    window.removeEventListener('online', cb);
+    window.removeEventListener('offline', cb);
+  };
+};
+
+/** navigator.onLine as an external store; the server snapshot assumes online. */
 function useOnline() {
-  const [online, setOnline] = useState(true);
-  useEffect(() => {
-    setOnline(navigator.onLine);
-    const on = () => setOnline(true);
-    const off = () => setOnline(false);
-    window.addEventListener('online', on);
-    window.addEventListener('offline', off);
-    return () => {
-      window.removeEventListener('online', on);
-      window.removeEventListener('offline', off);
-    };
-  }, []);
-  return online;
+  return useSyncExternalStore(subscribeOnline, () => navigator.onLine, () => true);
 }
 
 export function AppShell({ children }: { children: React.ReactNode }) {

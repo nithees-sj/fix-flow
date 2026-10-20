@@ -4,7 +4,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ChevronRight, Gauge, ShieldCheck, Trash2, Users, Wrench } from 'lucide-react';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { toast } from 'sonner';
 import { ROLES, ROLE_DESCRIPTIONS, ROLE_LABELS, formatMinutes, formatWorkOrderNumber, type MemberProfileDto, type Role } from '@fixflow/shared';
 import { Button } from '@/components/ui/button';
@@ -27,10 +27,10 @@ export default function MemberPage() {
   const categories = useCategories();
   const q = useQuery({ queryKey: qk.member(id), queryFn: () => api<MemberProfileDto>(`/members/${id}`) });
   const m = q.data;
-  const [skills, setSkills] = useState<Record<string, number>>({});
-  useEffect(() => {
-    if (m) setSkills(Object.fromEntries(m.skills.map((s) => [s.categoryId, s.level])));
-  }, [m]);
+  // Unsaved skill edits layered over the server copy.
+  const [skillEdits, setSkillEdits] = useState<Record<string, number>>({});
+  const savedSkills: Record<string, number> = m ? Object.fromEntries(m.skills.map((s) => [s.categoryId, s.level])) : {};
+  const skills = { ...savedSkills, ...skillEdits };
 
   const refresh = () => {
     void qc.invalidateQueries({ queryKey: qk.member(id) });
@@ -43,14 +43,14 @@ export default function MemberPage() {
   });
   const saveSkills = useMutation({
     mutationFn: () => api(`/members/${id}/skills`, { method: 'PUT', body: { skills: Object.entries(skills).filter(([, l]) => l > 0).map(([categoryId, level]) => ({ categoryId, level })) } }),
-    onSuccess: () => { toast.success('Skills saved'); refresh(); },
+    onSuccess: () => { toast.success('Skills saved'); setSkillEdits({}); refresh(); },
     onError: (e) => toast.error(errorMessage(e)),
   });
 
   if (q.isError) return <Card><EmptyState icon={<Users />} title="Member not found" /></Card>;
   if (!m) return <Skeleton className="h-64" />;
   const self = m.userId === user?.id;
-  const dirty = JSON.stringify(Object.fromEntries(Object.entries(skills).filter(([, l]) => l > 0)).valueOf()) !== JSON.stringify(Object.fromEntries(m.skills.map((s) => [s.categoryId, s.level])));
+  const dirty = Object.entries(skillEdits).some(([categoryId, level]) => (savedSkills[categoryId] ?? 0) !== level);
 
   return (
     <>
@@ -98,7 +98,7 @@ export default function MemberPage() {
                           role="radio"
                           aria-checked={(skills[c.id] ?? 0) === lvl}
                           disabled={!can('team.manageSkills')}
-                          onClick={() => setSkills((s) => ({ ...s, [c.id]: lvl }))}
+                          onClick={() => setSkillEdits((s) => ({ ...s, [c.id]: lvl }))}
                           className={`h-6 w-7 rounded text-xs font-medium transition-colors ${(skills[c.id] ?? 0) === lvl ? 'bg-brand text-white' : 'text-ink-3 hover:text-ink'}`}
                         >
                           {lvl === 0 ? '–' : lvl}

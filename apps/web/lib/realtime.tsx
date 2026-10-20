@@ -46,6 +46,7 @@ export function RealtimeProvider({ organizationId, children }: { organizationId:
       if (id) void qc.invalidateQueries({ queryKey: qk.workOrder(id) });
     };
     s.on('connect', () => {
+      setSocket(s);
       setStatus('live');
       if (everConnected.current) void qc.invalidateQueries(); // reconcile after a gap
       everConnected.current = true;
@@ -61,11 +62,11 @@ export function RealtimeProvider({ organizationId, children }: { organizationId:
     s.on('notification.created', () => void qc.invalidateQueries({ queryKey: qk.notifications }));
     s.on('dashboard.invalidate', () => void qc.invalidateQueries({ queryKey: ['dashboard'] }));
     s.on('session.expired', () => void qc.invalidateQueries({ queryKey: qk.me }));
-    setSocket(s);
     return () => {
       s.removeAllListeners();
       s.disconnect();
       setSocket(null);
+      setStatus('connecting');
     };
   }, [organizationId, qc]);
 

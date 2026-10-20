@@ -81,7 +81,7 @@ export class WorkOrdersService {
     if (!category) throw notFound('Category');
 
     let locationId = input.locationId ?? null;
-    let assetId = input.assetId ?? null;
+    const assetId = input.assetId ?? null;
     let source = ctx.source ?? 'WEB';
     let asset: { id: string; locationId: string; status: string; publicReportToken: string } | null = null;
     if (assetId) {

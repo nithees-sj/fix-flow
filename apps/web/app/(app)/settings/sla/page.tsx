@@ -1,7 +1,7 @@
 'use client';
 
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { toast } from 'sonner';
 import { PRIORITY_META, formatMinutes, type SlaPolicyDto } from '@fixflow/shared';
 import { SettingsSection } from '@/components/settings/section';
@@ -17,15 +17,16 @@ import { qk } from '@/lib/query-client';
 export default function SlaSettings() {
   const qc = useQueryClient();
   const q = useSlaPolicies();
-  const [draft, setDraft] = useState<SlaPolicyDto[] | null>(null);
-  useEffect(() => { if (q.data) setDraft(q.data); }, [q.data]);
+  // Unsaved edits layered over the server copy; null = no local changes.
+  const [edits, setEdits] = useState<SlaPolicyDto[] | null>(null);
+  const draft = edits ?? q.data ?? null;
   const save = useMutation({
     mutationFn: () => api<SlaPolicyDto[]>('/sla-policies', { method: 'PUT', body: { policies: draft } }),
-    onSuccess: (d) => { qc.setQueryData(qk.slaPolicies, d); toast.success('Service levels saved', { description: 'New targets apply to new, re-prioritized and reopened work orders.' }); },
+    onSuccess: (d) => { qc.setQueryData(qk.slaPolicies, d); setEdits(null); toast.success('Service levels saved', { description: 'New targets apply to new, re-prioritized and reopened work orders.' }); },
     onError: (e) => toast.error(isApiError(e) && e.problem.errors?.[0] ? e.problem.errors[0].message : errorMessage(e)),
   });
-  const set = (i: number, patch: Partial<SlaPolicyDto>) => setDraft((d) => d!.map((p, j) => (j === i ? { ...p, ...patch } : p)));
-  const dirty = JSON.stringify(draft) !== JSON.stringify(q.data);
+  const set = (i: number, patch: Partial<SlaPolicyDto>) => setEdits((d) => (d ?? q.data ?? []).map((p, j) => (j === i ? { ...p, ...patch } : p)));
+  const dirty = edits !== null && JSON.stringify(edits) !== JSON.stringify(q.data);
 
   return (
     <SettingsSection

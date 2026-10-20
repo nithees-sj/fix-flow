@@ -1,11 +1,12 @@
 'use client';
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useEffect, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import { INDUSTRIES, INDUSTRY_LABELS, type OrganizationDto } from '@fixflow/shared';
 import { SettingsSection } from '@/components/settings/section';
 import { Button } from '@/components/ui/button';
+import { Skeleton } from '@/components/ui/display';
 import { Field } from '@/components/ui/field';
 import { Input, NativeSelect } from '@/components/ui/input';
 import { api, errorMessage } from '@/lib/api';
@@ -22,16 +23,21 @@ function zones(current: string): string[] {
 }
 
 export default function OrganizationSettings() {
-  const qc = useQueryClient();
   const q = useQuery({ queryKey: qk.org, queryFn: () => api<OrganizationDto>('/organizations/current') });
-  const [v, setV] = useState({ name: '', industry: 'OTHER', timezone: 'UTC' });
-  const [tz, setTz] = useState<string[]>([]);
-  useEffect(() => {
-    if (q.data) {
-      setV({ name: q.data.name, industry: q.data.industry, timezone: q.data.timezone });
-      setTz(zones(q.data.timezone));
-    }
-  }, [q.data]);
+  if (!q.data) {
+    return (
+      <SettingsSection title="Organization profile">
+        <Skeleton className="h-36" />
+      </SettingsSection>
+    );
+  }
+  return <OrganizationForm key={q.data.id} org={q.data} />;
+}
+
+function OrganizationForm({ org }: { org: OrganizationDto }) {
+  const qc = useQueryClient();
+  const [v, setV] = useState({ name: org.name, industry: org.industry as string, timezone: org.timezone });
+  const tz = useMemo(() => zones(org.timezone), [org.timezone]);
   const save = useMutation({
     mutationFn: () => api<OrganizationDto>('/organizations/current', { method: 'PATCH', body: v }),
     onSuccess: (o) => { qc.setQueryData(qk.org, o); void qc.invalidateQueries({ queryKey: qk.me }); toast.success('Organization updated'); },
@@ -40,8 +46,8 @@ export default function OrganizationSettings() {
   return (
     <SettingsSection
       title="Organization profile"
-      description={q.data ? `Workspace created ${formatDate(q.data.createdAt)} · URL key “${q.data.slug}”` : undefined}
-      footer={<Button loading={save.isPending} disabled={!q.data || v.name.trim().length < 2} onClick={() => save.mutate()}>Save changes</Button>}
+      description={`Workspace created ${formatDate(org.createdAt)} · URL key “${org.slug}”`}
+      footer={<Button loading={save.isPending} disabled={v.name.trim().length < 2} onClick={() => save.mutate()}>Save changes</Button>}
     >
       <div className="grid gap-4 sm:grid-cols-2">
         <Field label="Organization name" htmlFor="o-name" className="sm:col-span-2"><Input id="o-name" value={v.name} onChange={(e) => setV({ ...v, name: e.target.value })} /></Field>

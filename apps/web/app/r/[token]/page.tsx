@@ -4,7 +4,7 @@ import { useMutation, useQuery } from '@tanstack/react-query';
 import { Boxes, CheckCircle2, LogIn, MapPin, Send } from 'lucide-react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import type { PublicReportContext } from '@fixflow/shared';
 import { Logo } from '@/components/brand';
 import { Alert } from '@/components/ui/alert';
@@ -28,14 +28,12 @@ export default function QrReportPage() {
   const ctx = useQuery({ queryKey: ['public-report', token], queryFn: () => api<PublicReportContext>(`/public/report/${token}`), retry: false });
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
-  const [categoryId, setCategoryId] = useState<string | null>(null);
+  const [chosenCategory, setCategoryId] = useState<string | null>(null);
+  const categoryId = chosenCategory ?? ctx.data?.defaultCategoryId ?? null;
   const [guestName, setGuestName] = useState('');
   const [guestContact, setGuestContact] = useState('');
   const [website, setWebsite] = useState(''); // honeypot
   const [error, setError] = useState<string | null>(null);
-  useEffect(() => {
-    if (ctx.data?.defaultCategoryId && !categoryId) setCategoryId(ctx.data.defaultCategoryId);
-  }, [ctx.data, categoryId]);
 
   const signedIn = !!me.data;
   const submit = useMutation({

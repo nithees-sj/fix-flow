@@ -1,7 +1,7 @@
 'use client';
 
 import { Camera, Check, ListChecks, Send } from 'lucide-react';
-import { useEffect, useRef, useState } from 'react';
+import { useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { SUBMISSION_ISSUE_MESSAGES, type AttachmentDto, type SubmissionIssue, type WorkOrderDetail } from '@fixflow/shared';
 import { Alert } from '@/components/ui/alert';
@@ -20,7 +20,8 @@ export function SubmitResolutionDialog({ open, onOpenChange, wo }: { open: boole
   const [notes, setNotes] = useState('');
   const [labor, setLabor] = useState('');
   const [parts, setParts] = useState('');
-  const [selected, setSelected] = useState<string[]>([]);
+  // Mounted fresh each time the dialog opens, so these seed from the current work order.
+  const [selected, setSelected] = useState<string[]>(() => wo.attachments.filter((a) => a.kind === 'EVIDENCE').map((a) => a.id));
   const [uploads, setUploads] = useState<AttachmentDto[]>([]);
   const [progress, setProgress] = useState<number | null>(null);
   const [issues, setIssues] = useState<string[]>([]);
@@ -28,13 +29,6 @@ export function SubmitResolutionDialog({ open, onOpenChange, wo }: { open: boole
 
   const photos = [...wo.attachments.filter((a) => a.contentType.startsWith('image/')), ...uploads.filter((u) => !wo.attachments.some((a) => a.id === u.id))];
   const openRequired = wo.checklist.filter((c) => c.required && !c.completedAt).length;
-
-  useEffect(() => {
-    if (open) {
-      setIssues([]);
-      setSelected(wo.attachments.filter((a) => a.kind === 'EVIDENCE').map((a) => a.id));
-    }
-  }, [open, wo.attachments]);
 
   const onFile = async (file: File | undefined) => {
     if (!file) return;

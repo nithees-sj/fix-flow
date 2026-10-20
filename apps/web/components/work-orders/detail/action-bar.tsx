@@ -97,7 +97,7 @@ export function ActionBar({ wo }: { wo: WorkOrderDetail }) {
         />
       )}
       <AssignDialog open={assignOpen} onOpenChange={setAssignOpen} wo={wo} onAssign={(id) => t.mutate({ action: wo.assignee ? 'reassign' : 'assign', assigneeId: id }, { onSuccess: () => { setAssignOpen(false); toast.success('Technician assigned and notified'); } })} loading={t.isPending} />
-      <SubmitResolutionDialog open={submitOpen} onOpenChange={setSubmitOpen} wo={wo} />
+      {submitOpen && <SubmitResolutionDialog open onOpenChange={setSubmitOpen} wo={wo} />}
       <ApproveDialog open={approveOpen} onOpenChange={setApproveOpen} loading={t.isPending} onApprove={(note) => t.mutate({ action: 'approve', note: note || undefined }, { onSuccess: () => { setApproveOpen(false); toast.success('Repair verified — work order resolved'); } })} />
     </>
   );

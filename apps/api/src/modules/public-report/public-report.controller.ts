@@ -2,7 +2,7 @@ import { Controller, Get, HttpStatus, Inject, Param, Post } from '@nestjs/common
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import type { Database } from '@fixflow/db';
-import { PRIORITIES, formatWorkOrderNumber, publicReportSchema, type CategoryColor, type CategoryIcon, type PublicReportContext, type PublicReportInput } from '@fixflow/shared';
+import { PRIORITIES, formatWorkOrderNumber, publicReportSchema, type CategoryColor, type CategoryIcon, type PublicReportContext } from '@fixflow/shared';
 import { z } from 'zod';
 import type { AuthState } from '../../common/auth/actor.js';
 import { OptionalAuth, Public } from '../../common/auth/decorators.js';

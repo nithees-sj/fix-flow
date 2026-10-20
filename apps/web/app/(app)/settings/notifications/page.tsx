@@ -1,7 +1,7 @@
 'use client';
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { toast } from 'sonner';
 import { NOTIFICATION_TYPE_META, type NotificationType } from '@fixflow/shared';
 import { SettingsSection } from '@/components/settings/section';
@@ -16,15 +16,16 @@ type Pref = { type: NotificationType; inApp: boolean; email: boolean };
 export default function NotificationSettings() {
   const qc = useQueryClient();
   const q = useQuery({ queryKey: qk.preferences, queryFn: () => api<Pref[]>('/notifications/preferences') });
-  const [draft, setDraft] = useState<Pref[] | null>(null);
-  useEffect(() => { if (q.data) setDraft(q.data); }, [q.data]);
+  // Unsaved edits layered over the server copy; null = no local changes.
+  const [edits, setEdits] = useState<Pref[] | null>(null);
+  const draft = edits ?? q.data ?? null;
   const save = useMutation({
     mutationFn: () => api<Pref[]>('/notifications/preferences', { method: 'PUT', body: { preferences: draft } }),
-    onSuccess: (d) => { qc.setQueryData(qk.preferences, d); toast.success('Notification preferences saved'); },
+    onSuccess: (d) => { qc.setQueryData(qk.preferences, d); setEdits(null); toast.success('Notification preferences saved'); },
     onError: (e) => toast.error(errorMessage(e)),
   });
-  const dirty = JSON.stringify(draft) !== JSON.stringify(q.data);
-  const set = (t: NotificationType, k: 'inApp' | 'email', v: boolean) => setDraft((d) => d!.map((p) => (p.type === t ? { ...p, [k]: v } : p)));
+  const dirty = edits !== null && JSON.stringify(edits) !== JSON.stringify(q.data);
+  const set = (t: NotificationType, k: 'inApp' | 'email', v: boolean) => setEdits((d) => (d ?? q.data ?? []).map((p) => (p.type === t ? { ...p, [k]: v } : p)));
 
   return (
     <SettingsSection

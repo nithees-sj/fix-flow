@@ -3,7 +3,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ArrowRight, Building2, Check, Gauge, Plus, Trash2, Users } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Suspense, useEffect, useState } from 'react';
+import { Suspense, useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import {
   INDUSTRIES,
@@ -27,6 +27,7 @@ import { applyServerErrors, useZodForm } from '@/lib/forms';
 import { qk } from '@/lib/query-client';
 import { landingFor } from '@/lib/routing';
 import { useMe } from '@/lib/session';
+import { useHydrated } from '@/lib/use-hydrated';
 import { cn } from '@/lib/utils';
 
 const STEPS = [
@@ -50,16 +51,15 @@ function Onboarding() {
   const qc = useQueryClient();
   const me = useMe();
   const creatingAnother = params.get('new') === '1';
-  const [step, setStep] = useState(0);
-
+  const org = creatingAnother ? undefined : me.data?.activeOrganization;
+  const alreadySetUp = !!org && (org.onboardingCompleted || org.role !== 'ORG_ADMIN');
   // An organization that already exists but hasn't finished onboarding resumes at step 2.
+  const [chosenStep, setStep] = useState<number | null>(null);
+  const step = chosenStep ?? (org && !alreadySetUp ? 1 : 0);
+
   useEffect(() => {
-    const org = me.data?.activeOrganization;
-    if (!creatingAnother && org && step === 0) {
-      if (org.onboardingCompleted || org.role !== 'ORG_ADMIN') router.replace(landingFor(me.data!));
-      else setStep(1);
-    }
-  }, [me.data, creatingAnother, step, router]);
+    if (alreadySetUp && chosenStep === null && me.data) router.replace(landingFor(me.data));
+  }, [alreadySetUp, chosenStep, me.data, router]);
 
   const finish = async () => {
     await api<OrganizationDto>('/organizations/current/onboarding/complete', { method: 'POST' });
@@ -113,15 +113,11 @@ function StepHeader({ title, description }: { title: string; description: string
 function OrgStep({ onDone }: { onDone: () => void }) {
   const qc = useQueryClient();
   const [error, setError] = useState<string | null>(null);
-  // Resolved after mount: the server's time zone database/zone must not leak into the markup.
-  const [tzList, setTzList] = useState<string[]>(['UTC']);
+  // Resolved after hydration: the server's time zone database/zone must not leak into the markup.
+  const hydrated = useHydrated();
+  const detectedTz = hydrated ? Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC' : 'UTC';
+  const tzList = useMemo(() => (hydrated ? [...new Set([detectedTz, 'UTC', ...zones()])] : ['UTC']), [hydrated, detectedTz]);
   const form = useZodForm(createOrganizationSchema, { defaultValues: { name: '', industry: 'EDUCATION', timezone: 'UTC' } });
-  const [detectedTz, setDetectedTz] = useState('UTC');
-  useEffect(() => {
-    const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
-    setDetectedTz(tz);
-    setTzList([...new Set([tz, 'UTC', ...zones()])]);
-  }, []);
   // Apply the detected zone once its <option> exists (uncontrolled select).
   useEffect(() => {
     if (tzList.length > 1) form.setValue('timezone', detectedTz);
@@ -172,16 +168,14 @@ function OrgStep({ onDone }: { onDone: () => void }) {
 
 function SlaStep({ onDone }: { onDone: () => void }) {
   const policies = useQuery({ queryKey: qk.slaPolicies, queryFn: () => api<SlaPolicyDto[]>('/sla-policies') });
-  const [draft, setDraft] = useState<SlaPolicyDto[] | null>(null);
-  useEffect(() => {
-    if (policies.data && !draft) setDraft(policies.data);
-  }, [policies.data, draft]);
+  const [edits, setEdits] = useState<SlaPolicyDto[] | null>(null);
+  const draft = edits ?? policies.data ?? null;
   const save = useMutation({
     mutationFn: () => api('/sla-policies', { method: 'PUT', body: { policies: draft } }),
     onSuccess: onDone,
     onError: (e) => toast.error(errorMessage(e)),
   });
-  const set = (i: number, patch: Partial<SlaPolicyDto>) => setDraft((d) => d!.map((p, j) => (j === i ? { ...p, ...patch } : p)));
+  const set = (i: number, patch: Partial<SlaPolicyDto>) => setEdits((d) => (d ?? policies.data ?? []).map((p, j) => (j === i ? { ...p, ...patch } : p)));
   return (
     <>
       <StepHeader title="Set your service levels" description="Targets drive deadlines, warnings and escalations. These are sensible starting points — adjust them to your commitments." />
