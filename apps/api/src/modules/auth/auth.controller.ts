@@ -34,8 +34,11 @@ import type { IssuedTokens } from './session.service.js';
 
 const csrfFrom = (req: Request) => (req.cookies as Record<string, string> | undefined)?.ff_csrf;
 
-const STRICT = { default: { limit: 10, ttl: 60_000, blockDuration: 60_000 } };
-const VERY_STRICT = { default: { limit: 5, ttl: 60_000, blockDuration: 5 * 60_000 } };
+// Per-IP limits for credential endpoints. Overridable only for automated test runs.
+const AUTH_LIMIT = Number(process.env.AUTH_RATE_LIMIT_PER_MINUTE ?? 10);
+const SIGNUP_LIMIT = Number(process.env.SIGNUP_RATE_LIMIT_PER_MINUTE ?? 5);
+const STRICT = { default: { limit: AUTH_LIMIT, ttl: 60_000, blockDuration: 60_000 } };
+const VERY_STRICT = { default: { limit: SIGNUP_LIMIT, ttl: 60_000, blockDuration: 5 * 60_000 } };
 
 @ApiTags('auth')
 @Controller('auth')

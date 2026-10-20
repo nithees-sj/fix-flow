@@ -225,10 +225,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               type="button"
               onClick={() => setPalette(true)}
               className="ml-auto flex h-9 items-center gap-2 rounded-md border border-line bg-surface px-3 text-sm text-ink-4 shadow-xs transition-colors hover:border-line-strong hover:text-ink-3 sm:ml-0 sm:w-72 lg:w-80"
-              aria-label="Search"
+              aria-keyshortcuts="Meta+K Control+K"
             >
-              <Search className="size-4" />
-              <span className="hidden flex-1 text-left sm:inline">Search…</span>
+              <Search className="size-4" aria-hidden />
+              <span className="flex-1 text-left max-sm:sr-only">Search…</span>
               <Kbd className="hidden sm:inline-flex">⌘K</Kbd>
             </button>
             <div className="flex items-center gap-1 sm:ml-auto">

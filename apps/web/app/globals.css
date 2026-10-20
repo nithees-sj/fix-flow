@@ -4,7 +4,8 @@
 /*
  * FixFlow design tokens (light theme only — see docs/UI_DESIGN_SYSTEM.md).
  * Semantic names keep components independent of raw palette values.
- * Contrast (WCAG 2.2 AA): ink-2 on canvas 7.2:1, ink-3 on surface 4.8:1, brand on surface 5.2:1.
+ * Contrast (WCAG 2.2 AA, verified with axe): every text token is ≥ 4.5:1 on every surface —
+ * ink-2 ≥ 10:1, ink-3 ≥ 6.4:1, ink-4 ≥ 4.67:1 (also used for placeholders), brand ≥ 5.2:1.
  */
 @theme {
   --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
@@ -25,8 +26,8 @@
   /* Text */
   --color-ink: #0f172a;
   --color-ink-2: #334155;
-  --color-ink-3: #64748b;
-  --color-ink-4: #94a3b8;
+  --color-ink-3: #4b5a70;
+  --color-ink-4: #5f6f86;
 
   /* Brand & accents */
   --color-brand: #2563eb;

@@ -71,7 +71,7 @@ export function ChecklistCard({ wo }: { wo: WorkOrderDetail }) {
           )
         }
       />
-      {items.length > 0 && <Progress value={(done / items.length) * 100} tone={done === items.length ? 'success' : 'brand'} className="mx-5 mb-2 w-auto" />}
+      {items.length > 0 && <Progress label="Checklist progress" value={(done / items.length) * 100} tone={done === items.length ? 'success' : 'brand'} className="mx-5 mb-2 w-auto" />}
       {items.length === 0 && !adding ? (
         <EmptyState compact icon={<ListChecks />} title="No steps yet" description={editable ? 'Add steps to track the work in detail.' : undefined} />
       ) : (
@@ -156,7 +156,7 @@ export function AttachmentsCard({ wo }: { wo: WorkOrderDetail }) {
           )
         }
       />
-      {progress !== null && <Progress value={progress} className="mx-5 mb-3 w-auto" />}
+      {progress !== null && <Progress label="Upload progress" value={progress} className="mx-5 mb-3 w-auto" />}
       {files.length === 0 ? (
         <EmptyState compact icon={<Paperclip />} title="No files yet" description={wo.permissions.canUpload ? 'Add photos of the problem or progress.' : undefined} />
       ) : (

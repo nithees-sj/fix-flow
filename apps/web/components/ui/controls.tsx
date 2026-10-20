@@ -42,10 +42,10 @@ export const Switch = React.forwardRef<React.ElementRef<typeof Sw.Root>, React.C
 );
 Switch.displayName = 'Switch';
 
-export function Progress({ value, className, tone = 'brand' }: { value: number; className?: string; tone?: 'brand' | 'success' | 'warning' | 'danger' }) {
+export function Progress({ value, label, className, tone = 'brand' }: { value: number; label: string; className?: string; tone?: 'brand' | 'success' | 'warning' | 'danger' }) {
   const bar = { brand: 'bg-brand', success: 'bg-success', warning: 'bg-warning', danger: 'bg-danger' }[tone];
   return (
-    <P.Root value={value} className={cn('relative h-1.5 w-full overflow-hidden rounded-full bg-surface-muted', className)}>
+    <P.Root value={value} aria-label={label} className={cn('relative h-1.5 w-full overflow-hidden rounded-full bg-surface-muted', className)}>
       <P.Indicator className={cn('h-full rounded-full transition-[width] duration-300', bar)} style={{ width: `${Math.max(0, Math.min(100, value))}%` }} />
     </P.Root>
   );

@@ -123,7 +123,7 @@ export function SubmitResolutionDialog({ open, onOpenChange, wo }: { open: boole
                 </label>
               </Button>
             </div>
-            {progress !== null && <Progress value={progress} className="mb-3" />}
+            {progress !== null && <Progress label="Upload progress" value={progress} className="mb-3" />}
             {photos.length === 0 ? (
               <p className="rounded-lg border border-dashed border-line-strong px-4 py-6 text-center text-[13px] text-ink-3">Add an “after” photo showing the completed repair.</p>
             ) : (

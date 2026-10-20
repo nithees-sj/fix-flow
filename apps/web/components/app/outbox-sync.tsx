@@ -14,6 +14,13 @@ export function OutboxSync({ userId, organizationId }: { userId: string; organiz
   const qc = useQueryClient();
   const items = useOutbox();
 
+  // Offline app shell (production builds only — dev assets change on every edit).
+  useEffect(() => {
+    if (process.env.NODE_ENV === 'production' && 'serviceWorker' in navigator) {
+      navigator.serviceWorker.register('/sw.js').catch(() => undefined);
+    }
+  }, []);
+
   useEffect(() => {
     setOutboxScope(userId, organizationId);
     setSnapshotScope(userId, organizationId);
@@ -23,8 +30,8 @@ export function OutboxSync({ userId, organizationId }: { userId: string; organiz
         void qc.invalidateQueries({ queryKey: qk.workOrder(item.workOrderId) });
         void qc.invalidateQueries({ queryKey: ['work-orders'] });
       }).then(({ synced, conflicts }) => {
-        if (synced) toast.success(`Synced ${synced} offline change${synced === 1 ? '' : 's'}`);
-        if (conflicts) toast.warning('Some offline changes conflict with newer updates', { description: 'Review them in My work → Pending changes.' });
+        if (synced) toast.success(`Synced ${synced} offline change${synced === 1 ? '' : 's'}`, { id: 'outbox-synced' });
+        if (conflicts) toast.warning('Some offline changes conflict with newer updates', { id: 'outbox-conflict', description: 'Review them in My work → Pending changes.' });
       });
     };
     run();

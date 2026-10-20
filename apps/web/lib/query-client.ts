@@ -6,6 +6,8 @@ export function makeQueryClient(): QueryClient {
     defaultOptions: {
       queries: {
         staleTime: 30_000,
+        // Run the queryFn even when offline so `offlineFirst` can serve device snapshots.
+        networkMode: 'offlineFirst',
         gcTime: 10 * 60_000,
         refetchOnWindowFocus: true,
         retry: (count, error) => {
@@ -14,7 +16,8 @@ export function makeQueryClient(): QueryClient {
           return count < 2;
         },
       },
-      mutations: { retry: false },
+      // The offline outbox decides what to do without a network — never pause mutations.
+      mutations: { retry: false, networkMode: 'always' },
     },
   });
 }

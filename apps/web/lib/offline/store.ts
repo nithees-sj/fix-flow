@@ -43,6 +43,7 @@ export function offlineDb(): Promise<IDBPDatabase<OfflineDB>> {
 }
 
 export async function clearOfflineStore(): Promise<void> {
+  if (typeof navigator !== 'undefined' && navigator.serviceWorker?.controller) navigator.serviceWorker.controller.postMessage('clear-caches');
   if (typeof indexedDB === 'undefined') return;
   try {
     const db = await offlineDb();
