@@ -58,6 +58,25 @@ describe('registration and sign-in', () => {
   });
 });
 
+describe('per-account brute-force protection', () => {
+  it('locks an account after repeated failures, regardless of source IP, without affecting others', async () => {
+    const { email } = await registerUser(h, 'Target User');
+    const { email: bystander } = await registerUser(h, 'Bystander');
+    const c = await Client.create(h);
+    for (let i = 0; i < 10; i++) {
+      await c.post('/auth/login', { email, password: 'wrong-password-123' }).expect(401);
+    }
+    // Even the correct password is refused while the account is locked.
+    const locked = await c.post('/auth/login', { email, password: PASSWORD }).expect(429);
+    expect(locked.body.code).toBe('RATE_LIMITED');
+    await c.post('/auth/login', { email: bystander, password: PASSWORD }).expect(200);
+    // Unknown emails get the same budget, so lockouts do not reveal which accounts exist.
+    const ghost = uniqueEmail('ghost');
+    for (let i = 0; i < 10; i++) await c.post('/auth/login', { email: ghost, password: 'wrong-password-123' }).expect(401);
+    await c.post('/auth/login', { email: ghost, password: 'wrong-password-123' }).expect(429);
+  });
+});
+
 describe('CSRF protection', () => {
   it('rejects cookie-authenticated mutations without the CSRF header', async () => {
     const { client } = await registerUser(h);

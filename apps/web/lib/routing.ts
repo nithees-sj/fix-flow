@@ -10,6 +10,18 @@ export function landingFor(me: MeResponse): string {
   return '/dashboard';
 }
 
+/**
+ * Accepts only same-origin relative paths for post-sign-in redirects. Browsers treat `\` like
+ * `/` and strip tabs/newlines, so `/\evil.example` or `/\t/evil.example` would otherwise
+ * become protocol-relative and leave the site.
+ */
 export function safeNext(next: string | null): string | null {
-  return next && next.startsWith('/') && !next.startsWith('//') ? next : null;
+  if (!next || !next.startsWith('/') || /[\\\u0000-\u001f\u007f]/.test(next)) return null;
+  try {
+    const base = 'https://fixflow.invalid';
+    const url = new URL(next, base);
+    return url.origin === base ? `${url.pathname}${url.search}${url.hash}` : null;
+  } catch {
+    return null;
+  }
 }

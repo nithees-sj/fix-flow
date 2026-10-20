@@ -91,12 +91,11 @@ export class SlaEngine {
       if (inserted.count === 0) return null; // already processed (duplicate delivery)
 
       const policy = await tx.slaPolicy.findUnique({ where: { organizationId_priority: { organizationId: job.organizationId, priority: w.priority } } });
-      const label = `${formatWorkOrderNumber(w.number)} · ${w.title}`;
       const managers = await this.notifier.managers(tx, job.organizationId);
       const notifications = await this.notifier.notify(tx, job.organizationId, isBreach ? [...managers, w.assigneeId] : [w.assigneeId, ...managers], {
         type: isBreach ? 'SLA_BREACH' : 'SLA_WARNING',
         title: isBreach ? `${formatWorkOrderNumber(w.number)} missed its ${isResponse ? 'response' : 'resolution'} target` : `${formatWorkOrderNumber(w.number)} is close to its ${isResponse ? 'response' : 'resolution'} deadline`,
-        body: label,
+        body: w.title, // the number is already in the title
         workOrderId: w.id,
         dedupeKey: `sla:${job.type}:${w.id}:${job.cycle}`,
       });

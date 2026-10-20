@@ -13,12 +13,16 @@ import type { ClientInfo } from '../../common/auth/decorators.js';
 import { AppError, badRequest, forbidden, unauthenticated } from '../../common/errors.js';
 import { JwtService } from '../../infra/jwt.service.js';
 import { OutboxService } from '../../infra/outbox.service.js';
-import { DATABASE } from '../../infra/tokens.js';
+import type { Redis } from 'ioredis';
+import { DATABASE, REDIS } from '../../infra/tokens.js';
 import { hashPassword, newSecret, sha256, verifyPassword } from './crypto.js';
 import { type IssuedTokens, SessionService } from './session.service.js';
 
 const RESET_TTL_MS = 30 * 60_000;
 const VERIFY_TTL_MS = 48 * 3_600_000;
+/** Per-account failed sign-in budget (complements the per-IP limit against distributed guessing). */
+const LOGIN_FAILURES_MAX = 10;
+const LOGIN_FAILURE_WINDOW_SECONDS = 15 * 60;
 
 @Injectable()
 export class AuthService {
@@ -28,6 +32,7 @@ export class AuthService {
     private readonly sessions: SessionService,
     private readonly outbox: OutboxService,
     private readonly jwt: JwtService,
+    @Inject(REDIS) private readonly redis: Redis,
   ) {}
 
   /** System path: account creation happens before any tenant/user context exists. */
@@ -58,14 +63,22 @@ export class AuthService {
   }
 
   async login(input: LoginInput, client: ClientInfo): Promise<IssuedTokens> {
+    // Keyed by the submitted email whether or not an account exists, so it reveals nothing.
+    const failuresKey = `ff:login-failures:${sha256(input.email)}`;
+    const failures = Number(await this.redis.get(failuresKey));
+    if (failures >= LOGIN_FAILURES_MAX) {
+      throw new AppError(HttpStatus.TOO_MANY_REQUESTS, 'RATE_LIMITED', 'Too many failed sign-in attempts. Wait 15 minutes or reset your password.');
+    }
     const user = await this.db.system.user.findUnique({
       where: { email: input.email },
       select: { id: true, passwordHash: true },
     });
     const ok = await verifyPassword(user?.passwordHash ?? null, input.password);
     if (!user || !ok) {
+      await this.redis.multi().incr(failuresKey).expire(failuresKey, LOGIN_FAILURE_WINDOW_SECONDS, 'NX').exec();
       throw new AppError(HttpStatus.UNAUTHORIZED, 'INVALID_CREDENTIALS', 'Incorrect email or password.');
     }
+    await this.redis.del(failuresKey);
     const org = await this.pickLandingOrganization(user.id);
     await this.db.system.user.update({ where: { id: user.id }, data: { lastLoginAt: new Date() } });
     return this.sessions.create(user.id, org, client);
@@ -185,6 +198,7 @@ export class AuthService {
       await this.outbox.add(tx, null, 'email.send', { to: record.user.email, template: 'password-changed', data: { name: record.user.name } });
     });
     await this.sessions.revokeAllForUser(record.userId);
+    await this.redis.del(`ff:login-failures:${sha256(record.user.email)}`); // the owner proved control
     this.outbox.nudge();
   }
 
