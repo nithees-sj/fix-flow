@@ -15,6 +15,7 @@ import { DATABASE } from '../../infra/tokens.js';
 import { NotifierService } from '../notifications/notifier.service.js';
 import { loadPolicy } from './policy.js';
 import { WorkOrderQueryService } from './work-order-query.service.js';
+import { inSequence } from '../../common/sequential.js';
 
 const CHECKLIST_EDITABLE = new Set(['ASSIGNED', 'IN_PROGRESS', 'ON_HOLD']);
 
@@ -36,26 +37,26 @@ export class ActivityService {
       const org = actor.organizationId;
       const isStaff = actor.role !== 'REQUESTER';
       const user = { select: { id: true, name: true } } as const;
-      const [status, assignments, comments, attachments, sla, submissions, updates] = await Promise.all([
-        tx.workOrderStatusHistory.findMany({ where: { organizationId: org, workOrderId: id }, include: { actor: user } }),
-        tx.workOrderAssignment.findMany({
+      const [status, assignments, comments, attachments, sla, submissions, updates] = await inSequence(
+        () => tx.workOrderStatusHistory.findMany({ where: { organizationId: org, workOrderId: id }, include: { actor: user } }),
+        () => tx.workOrderAssignment.findMany({
           where: { organizationId: org, workOrderId: id },
           include: { assignedBy: user, assignee: { select: { user: user } } },
         }),
-        tx.workOrderComment.findMany({
+        () => tx.workOrderComment.findMany({
           where: { organizationId: org, workOrderId: id, ...(isStaff ? {} : { isInternal: false }) },
           include: { author: user },
         }),
-        tx.attachment.findMany({ where: { organizationId: org, workOrderId: id }, include: { uploadedBy: user } }),
-        isStaff ? tx.slaEvent.findMany({ where: { organizationId: org, workOrderId: id } }) : Promise.resolve([]),
-        tx.resolutionSubmission.findMany({ where: { organizationId: org, workOrderId: id }, include: { submittedBy: user } }),
-        isStaff
+        () => tx.attachment.findMany({ where: { organizationId: org, workOrderId: id }, include: { uploadedBy: user } }),
+        () => isStaff ? tx.slaEvent.findMany({ where: { organizationId: org, workOrderId: id } }) : Promise.resolve([]),
+        () => tx.resolutionSubmission.findMany({ where: { organizationId: org, workOrderId: id }, include: { submittedBy: user } }),
+        () => isStaff
           ? tx.auditLog.findMany({
               where: { organizationId: org, entityType: 'WorkOrder', entityId: id, action: 'workOrder.updated' },
               include: { actor: user },
             })
           : Promise.resolve([]),
-      ]);
+      );
       const entries: TimelineEntry[] = [
         ...status.map((s) => ({ kind: 'status' as const, id: s.id, at: s.createdAt.toISOString(), actor: s.actor, from: s.fromStatus, to: s.toStatus, reason: s.reason })),
         ...assignments.map((a) => ({ kind: 'assignment' as const, id: a.id, at: a.assignedAt.toISOString(), actor: a.assignedBy, assignee: a.assignee.user, method: a.method })),

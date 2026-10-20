@@ -18,6 +18,7 @@ import { DATABASE } from '../../infra/tokens.js';
 import { LocationIndex } from '../locations/location-index.js';
 import { workOrderVisibility } from './access.js';
 import { loadPolicy, type OrgPolicy } from './policy.js';
+import { inSequence } from '../../common/sequential.js';
 
 export const summaryInclude = {
   category: { select: { id: true, name: true, color: true, icon: true } },
@@ -179,10 +180,10 @@ export class WorkOrderQueryService {
       const where = this.buildWhere(actor, policy, q, locations);
       const orderBy: Prisma.WorkOrderOrderByWithRelationInput | Prisma.WorkOrderOrderByWithRelationInput[] =
         q.sort === 'priority' ? PRIORITY_ORDER(q.order) : [{ [q.sort]: q.order }, { number: 'desc' }];
-      const [data, total] = await Promise.all([
-        this.listSummaries(tx, actor.organizationId, { where, orderBy, skip: (q.page - 1) * q.pageSize, take: q.pageSize }, locations),
-        tx.workOrder.count({ where }),
-      ]);
+      const [data, total] = await inSequence(
+        () => this.listSummaries(tx, actor.organizationId, { where, orderBy, skip: (q.page - 1) * q.pageSize, take: q.pageSize }, locations),
+        () => tx.workOrder.count({ where }),
+      );
       return { data, meta: { page: q.page, pageSize: q.pageSize, total, pageCount: Math.max(1, Math.ceil(total / q.pageSize)) } };
     });
   }
@@ -200,18 +201,18 @@ export class WorkOrderQueryService {
   async detail(tx: Tx, actor: Actor, id: string): Promise<WorkOrderDetail> {
     const policy = await loadPolicy(tx, actor.organizationId);
     const wo = await this.findVisible(tx, actor, policy, id);
-    const [checklist, attachments, submissions, schedule, locations] = await Promise.all([
-      tx.workOrderChecklistItem.findMany({
+    const [checklist, attachments, submissions, schedule, locations] = await inSequence(
+      () => tx.workOrderChecklistItem.findMany({
         where: { organizationId: actor.organizationId, workOrderId: id },
         orderBy: { sortOrder: 'asc' },
         include: { completedBy: { select: { id: true, name: true } } },
       }),
-      tx.attachment.findMany({
+      () => tx.attachment.findMany({
         where: { organizationId: actor.organizationId, workOrderId: id },
         orderBy: { createdAt: 'asc' },
         include: attachmentInclude,
       }),
-      tx.resolutionSubmission.findMany({
+      () => tx.resolutionSubmission.findMany({
         where: { organizationId: actor.organizationId, workOrderId: id },
         orderBy: { submittedAt: 'desc' },
         include: {
@@ -220,11 +221,11 @@ export class WorkOrderQueryService {
           attachments: { include: attachmentInclude, orderBy: { createdAt: 'asc' } },
         },
       }),
-      wo.scheduleId
+      () => wo.scheduleId
         ? tx.maintenanceSchedule.findFirst({ where: { id: wo.scheduleId, organizationId: actor.organizationId }, select: { id: true, title: true } })
         : null,
-      LocationIndex.load(tx, actor.organizationId),
-    ]);
+      () => LocationIndex.load(tx, actor.organizationId),
+    );
 
     const now = new Date();
     const isStaff = actor.role !== 'REQUESTER';

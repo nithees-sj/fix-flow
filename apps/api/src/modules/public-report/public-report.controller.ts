@@ -11,6 +11,7 @@ import { ZBody } from '../../common/zod.js';
 import { DATABASE } from '../../infra/tokens.js';
 import { LocationIndex } from '../locations/location-index.js';
 import { WorkOrdersService } from '../work-orders/work-orders.service.js';
+import { inSequence } from '../../common/sequential.js';
 
 const TOKEN_RE = /^[\w-]{16,64}$/;
 
@@ -72,11 +73,11 @@ export class PublicReportController {
     const t = await this.resolve(token);
     // Reads below run under the resolved tenant's RLS context.
     return this.db.tx({ organizationId: t.organizationId, userId: null }, async (tx) => {
-      const [categories, idx, asset] = await Promise.all([
-        tx.category.findMany({ where: { organizationId: t.organizationId, archivedAt: null }, select: { id: true, name: true, icon: true, color: true }, orderBy: { name: 'asc' } }),
-        LocationIndex.load(tx, t.organizationId),
-        t.assetId ? tx.asset.findUniqueOrThrow({ where: { id: t.assetId }, select: { name: true, assetTag: true } }) : null,
-      ]);
+      const [categories, idx, asset] = await inSequence(
+        () => tx.category.findMany({ where: { organizationId: t.organizationId, archivedAt: null }, select: { id: true, name: true, icon: true, color: true }, orderBy: { name: 'asc' } }),
+        () => LocationIndex.load(tx, t.organizationId),
+        () => t.assetId ? tx.asset.findUniqueOrThrow({ where: { id: t.assetId }, select: { name: true, assetTag: true } }) : null,
+      );
       const loc = idx.get(t.locationId);
       return {
         organizationName: t.organizationName,

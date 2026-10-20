@@ -13,6 +13,7 @@ import { LocationIndex } from '../locations/location-index.js';
 import { loadPolicy } from '../work-orders/policy.js';
 import { WorkOrderQueryService } from '../work-orders/work-order-query.service.js';
 import { WorkOrdersService } from '../work-orders/work-orders.service.js';
+import { inSequence } from '../../common/sequential.js';
 
 const include = {
   category: { select: { id: true, name: true } },
@@ -35,10 +36,10 @@ export class SchedulesController {
   ) {}
 
   private async dtos(tx: Tx, orgId: string, id?: string): Promise<ScheduleDto[]> {
-    const [rows, idx] = await Promise.all([
-      tx.maintenanceSchedule.findMany({ where: { organizationId: orgId, ...(id ? { id } : {}) }, include, orderBy: [{ active: 'desc' }, { nextDueAt: 'asc' }] }),
-      LocationIndex.load(tx, orgId),
-    ]);
+    const [rows, idx] = await inSequence(
+      () => tx.maintenanceSchedule.findMany({ where: { organizationId: orgId, ...(id ? { id } : {}) }, include, orderBy: [{ active: 'desc' }, { nextDueAt: 'asc' }] }),
+      () => LocationIndex.load(tx, orgId),
+    );
     return rows.map((s) => ({
       id: s.id,
       title: s.title,
@@ -75,7 +76,8 @@ export class SchedulesController {
       if (body.locationId) checks.push(tx.location.count({ where: { id: body.locationId, organizationId: org, archivedAt: null } }));
       if (body.checklistTemplateId) checks.push(tx.checklistTemplate.count({ where: { id: body.checklistTemplateId, organizationId: org } }));
       if (body.defaultAssigneeId) checks.push(tx.membership.count({ where: { organizationId: org, userId: body.defaultAssigneeId, role: 'TECHNICIAN', status: 'ACTIVE' } }));
-      if ((await Promise.all(checks)).some((n) => n === 0)) throw notFound('Referenced record');
+      // Prisma queries are lazy: awaiting them in turn keeps the transaction's queries sequential.
+      for (const check of checks) if ((await check) === 0) throw notFound('Referenced record');
       const policy = await loadPolicy(tx, org);
       const startsAt = new Date(body.startsAt);
       const nextDueAt = nextOccurrenceAfter(startsAt, body.frequencyUnit, body.frequencyInterval, new Date(Date.now() - 1), policy.timezone);

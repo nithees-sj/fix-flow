@@ -16,6 +16,7 @@ import { CurrentActor } from '../../common/auth/decorators.js';
 import { notFound } from '../../common/errors.js';
 import { UuidParamPipe, ZBody, ZQuery } from '../../common/zod.js';
 import { DATABASE } from '../../infra/tokens.js';
+import { inSequence } from '../../common/sequential.js';
 
 const encodeCursor = (d: Date, id: string) => Buffer.from(`${d.toISOString()}|${id}`).toString('base64url');
 const decodeCursor = (c: string): { at: Date; id: string } | null => {
@@ -43,15 +44,15 @@ export class NotificationsController {
         ...(q.unreadOnly ? { readAt: null } : {}),
         ...(cursor ? { OR: [{ createdAt: { lt: cursor.at } }, { createdAt: cursor.at, id: { lt: cursor.id } }] } : {}),
       };
-      const [rows, unreadCount] = await Promise.all([
-        tx.notification.findMany({
+      const [rows, unreadCount] = await inSequence(
+        () => tx.notification.findMany({
           where,
           orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
           take: q.limit + 1,
           include: { workOrder: { select: { number: true } } },
         }),
-        tx.notification.count({ where: { organizationId: actor.organizationId, userId: actor.userId, readAt: null } }),
-      ]);
+        () => tx.notification.count({ where: { organizationId: actor.organizationId, userId: actor.userId, readAt: null } }),
+      );
       const page = rows.slice(0, q.limit);
       const last = page.at(-1);
       return {

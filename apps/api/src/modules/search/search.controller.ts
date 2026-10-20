@@ -10,6 +10,7 @@ import { DATABASE } from '../../infra/tokens.js';
 import { LocationIndex } from '../locations/location-index.js';
 import { workOrderVisibility } from '../work-orders/access.js';
 import { loadPolicy } from '../work-orders/policy.js';
+import { inSequence } from '../../common/sequential.js';
 
 /** Command-palette search. Each result type honours the same visibility rules as its list endpoint. */
 @ApiTags('search')
@@ -25,8 +26,8 @@ export class SearchController {
     return this.db.tx(actor.ctx, async (tx) => {
       const policy = await loadPolicy(tx, actor.organizationId);
       const org = actor.organizationId;
-      const [workOrders, assets, locations, people] = await Promise.all([
-        tx.workOrder.findMany({
+      const [workOrders, assets, locations, people] = await inSequence(
+        () => tx.workOrder.findMany({
           where: {
             organizationId: org,
             AND: [workOrderVisibility(actor, policy), { OR: [{ title: { contains: q, mode: 'insensitive' } }, ...(number ? [{ number }] : [])] }],
@@ -35,28 +36,28 @@ export class SearchController {
           orderBy: { updatedAt: 'desc' },
           take: 6,
         }),
-        actor.permissions.has('asset.read')
+        () => actor.permissions.has('asset.read')
           ? tx.asset.findMany({
               where: { organizationId: org, archivedAt: null, OR: [{ name: { contains: q, mode: 'insensitive' } }, { assetTag: { contains: q, mode: 'insensitive' } }] },
               select: { id: true, name: true, assetTag: true },
               take: 5,
             })
           : [],
-        actor.permissions.has('location.read')
+        () => actor.permissions.has('location.read')
           ? tx.location.findMany({
               where: { organizationId: org, archivedAt: null, OR: [{ name: { contains: q, mode: 'insensitive' } }, { code: { contains: q, mode: 'insensitive' } }] },
               select: { id: true },
               take: 5,
             })
           : [],
-        actor.permissions.has('team.read')
+        () => actor.permissions.has('team.read')
           ? tx.membership.findMany({
               where: { organizationId: org, user: { name: { contains: q, mode: 'insensitive' } } },
               select: { userId: true, role: true, user: { select: { name: true } } },
               take: 5,
             })
           : [],
-      ]);
+      );
       const idx = locations.length ? await LocationIndex.load(tx, org) : null;
       return {
         workOrders,

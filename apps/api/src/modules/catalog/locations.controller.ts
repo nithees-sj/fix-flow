@@ -26,6 +26,7 @@ import { newReportToken } from '../organizations/organizations.service.js';
 import { WorkOrderQueryService } from '../work-orders/work-order-query.service.js';
 import { AssetsQuery } from './assets.query.js';
 import { reportUrl, sendQr } from './qr.js';
+import { inSequence } from '../../common/sequential.js';
 
 @ApiTags('locations')
 @Controller('locations')
@@ -40,10 +41,10 @@ export class LocationsController {
 
   private async dtos(tx: Tx, orgId: string, opts: { includeArchived?: boolean; ids?: string[] } = {}): Promise<LocationDto[]> {
     const idx = await LocationIndex.load(tx, orgId);
-    const [assetCounts, openCounts] = await Promise.all([
-      tx.asset.groupBy({ by: ['locationId'], where: { organizationId: orgId, archivedAt: null }, _count: true }),
-      tx.workOrder.groupBy({ by: ['locationId'], where: { organizationId: orgId, status: { in: [...ACTIVE_STATUSES] } }, _count: true }),
-    ]);
+    const [assetCounts, openCounts] = await inSequence(
+      () => tx.asset.groupBy({ by: ['locationId'], where: { organizationId: orgId, archivedAt: null }, _count: true }),
+      () => tx.workOrder.groupBy({ by: ['locationId'], where: { organizationId: orgId, status: { in: [...ACTIVE_STATUSES] } }, _count: true }),
+    );
     const assetsBy = new Map(assetCounts.map((a) => [a.locationId, a._count]));
     const openBy = new Map(openCounts.map((a) => [a.locationId, a._count]));
     const rows = await tx.location.findMany({
@@ -138,10 +139,10 @@ export class LocationsController {
     return this.db.tx(actor.ctx, async (tx) => {
       const loc = await tx.location.findFirst({ where: { id, organizationId: actor.organizationId } });
       if (!loc) throw notFound('Location');
-      const [children, open] = await Promise.all([
-        tx.location.count({ where: { organizationId: actor.organizationId, parentId: id, archivedAt: null } }),
-        tx.workOrder.count({ where: { organizationId: actor.organizationId, locationId: id, status: { in: [...ACTIVE_STATUSES] } } }),
-      ]);
+      const [children, open] = await inSequence(
+        () => tx.location.count({ where: { organizationId: actor.organizationId, parentId: id, archivedAt: null } }),
+        () => tx.workOrder.count({ where: { organizationId: actor.organizationId, locationId: id, status: { in: [...ACTIVE_STATUSES] } } }),
+      );
       if (children) throw conflict('Archive or move the sub-locations first.');
       if (open) throw conflict('This location still has active work orders.');
       await tx.location.update({ where: { id }, data: { archivedAt: new Date() } });

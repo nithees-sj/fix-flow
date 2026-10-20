@@ -1,0 +1,26 @@
+# Example single-origin reverse proxy for production (Caddy 2, automatic HTTPS).
+# Browser → https://fixflow.example.com
+#   /realtime/*  → api:4000 (Socket.IO, WebSocket upgrade)
+#   everything else → web:3000 (Next.js; it proxies /api/v1/* to the API itself)
+#
+# Build the web image with NEXT_PUBLIC_REALTIME_URL=https://fixflow.example.com so the
+# browser opens WebSockets on the same origin, and set on the API:
+#   APP_WEB_URL=https://fixflow.example.com  CORS_ORIGINS=https://fixflow.example.com  COOKIE_SECURE=true
+
+fixflow.example.com {
+	encode zstd gzip
+
+	@realtime path /realtime/*
+	reverse_proxy @realtime api:4000
+
+	# Optional: keep the API reference private.
+	# @docs path /api/docs*
+	# respond @docs 404
+
+	reverse_proxy web:3000
+
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		-Server
+	}
+}

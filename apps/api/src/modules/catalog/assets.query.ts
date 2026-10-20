@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import type { Prisma, Tx } from '@fixflow/db';
 import { ACTIVE_STATUSES, type AssetSummary, type CategoryColor, type CategoryIcon } from '@fixflow/shared';
 import { LocationIndex } from '../locations/location-index.js';
+import { inSequence } from '../../common/sequential.js';
 
 export const assetInclude = {
   category: { select: { id: true, name: true, color: true, icon: true } },
@@ -28,10 +29,10 @@ export class AssetsQuery {
   async toSummaries(tx: Tx, organizationId: string, rows: AssetRow[], locations?: LocationIndex): Promise<AssetSummary[]> {
     if (!rows.length) return [];
     const ids = rows.map((r) => r.id);
-    const [open, serviced] = await Promise.all([
-      tx.workOrder.groupBy({ by: ['assetId'], where: { organizationId, assetId: { in: ids }, status: { in: [...ACTIVE_STATUSES] } }, _count: true }),
-      tx.workOrder.groupBy({ by: ['assetId'], where: { organizationId, assetId: { in: ids }, resolvedAt: { not: null } }, _max: { resolvedAt: true } }),
-    ]);
+    const [open, serviced] = await inSequence(
+      () => tx.workOrder.groupBy({ by: ['assetId'], where: { organizationId, assetId: { in: ids }, status: { in: [...ACTIVE_STATUSES] } }, _count: true }),
+      () => tx.workOrder.groupBy({ by: ['assetId'], where: { organizationId, assetId: { in: ids }, resolvedAt: { not: null } }, _max: { resolvedAt: true } }),
+    );
     const openBy = new Map(open.map((o) => [o.assetId, o._count]));
     const servicedBy = new Map(serviced.map((s) => [s.assetId, s._max.resolvedAt]));
     const idx = locations ?? (await LocationIndex.load(tx, organizationId));

@@ -13,6 +13,7 @@ import {
 import type { Actor } from '../../common/auth/actor.js';
 import { DATABASE } from '../../infra/tokens.js';
 import { bucketKeys, granularityFor, type Granularity } from './buckets.js';
+import { inSequence } from '../../common/sequential.js';
 
 const num = (v: unknown): number => (v === null || v === undefined ? 0 : Number(v));
 const numOrNull = (v: unknown): number | null => (v === null || v === undefined ? null : Math.round(Number(v)));
@@ -148,13 +149,13 @@ export class AnalyticsService {
       const none = Prisma.empty;
       const inRange = Prisma.sql`w.organization_id = ${org}::uuid AND w.created_at BETWEEN ${from} AND ${to}`;
 
-      const [status, priority, category] = await Promise.all([
-        tx.$queryRaw<{ status: WorkOrderStatus; count: bigint }[]>(Prisma.sql`SELECT w.status, count(*) FROM work_orders w WHERE ${inRange} GROUP BY w.status`),
-        tx.$queryRaw<{ priority: Priority; count: bigint }[]>(Prisma.sql`SELECT w.priority, count(*) FROM work_orders w WHERE ${inRange} GROUP BY w.priority`),
-        tx.$queryRaw<{ id: string; name: string; color: string; count: bigint }[]>(Prisma.sql`
+      const [status, priority, category] = await inSequence(
+        () => tx.$queryRaw<{ status: WorkOrderStatus; count: bigint }[]>(Prisma.sql`SELECT w.status, count(*) FROM work_orders w WHERE ${inRange} GROUP BY w.status`),
+        () => tx.$queryRaw<{ priority: Priority; count: bigint }[]>(Prisma.sql`SELECT w.priority, count(*) FROM work_orders w WHERE ${inRange} GROUP BY w.priority`),
+        () => tx.$queryRaw<{ id: string; name: string; color: string; count: bigint }[]>(Prisma.sql`
           SELECT c.id, c.name, c.color, count(w.id) FROM work_orders w JOIN categories c ON c.id = w.category_id AND c.organization_id = w.organization_id
           WHERE ${inRange} GROUP BY c.id, c.name, c.color ORDER BY count(w.id) DESC`),
-      ]);
+      );
 
       const keys = bucketKeys(from, to, tz, unit);
       const created = await this.bucketCounts(tx, org, none, 'created_at', unit, tz, from, to);

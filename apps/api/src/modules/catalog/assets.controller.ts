@@ -26,6 +26,7 @@ import { newReportToken } from '../organizations/organizations.service.js';
 import { WorkOrderQueryService } from '../work-orders/work-order-query.service.js';
 import { assetInclude, AssetsQuery } from './assets.query.js';
 import { reportUrl, sendQr } from './qr.js';
+import { inSequence } from '../../common/sequential.js';
 
 const toDate = (v: string | null | undefined) => (v === undefined ? undefined : v === null ? null : new Date(v));
 
@@ -63,10 +64,10 @@ export class AssetsController {
       };
       const orderBy: Prisma.AssetOrderByWithRelationInput =
         q.sort === 'openWorkOrders' ? { workOrders: { _count: q.order } } : { [q.sort]: q.order };
-      const [data, total] = await Promise.all([
-        this.query.summaries(tx, actor.organizationId, where, idx, q.pageSize, (q.page - 1) * q.pageSize, [orderBy, { name: 'asc' }]),
-        tx.asset.count({ where: { organizationId: actor.organizationId, ...where } }),
-      ]);
+      const [data, total] = await inSequence(
+        () => this.query.summaries(tx, actor.organizationId, where, idx, q.pageSize, (q.page - 1) * q.pageSize, [orderBy, { name: 'asc' }]),
+        () => tx.asset.count({ where: { organizationId: actor.organizationId, ...where } }),
+      );
       return { data, meta: { page: q.page, pageSize: q.pageSize, total, pageCount: Math.max(1, Math.ceil(total / q.pageSize)) } };
     });
   }
@@ -76,14 +77,14 @@ export class AssetsController {
     if (!a) throw notFound('Asset');
     const [summary] = await this.query.toSummaries(tx, actor.organizationId, [a]);
     const since = new Date(Date.now() - 90 * 86_400_000);
-    const [total, corrective, resolved] = await Promise.all([
-      tx.workOrder.count({ where: { organizationId: actor.organizationId, assetId: id } }),
-      tx.workOrder.count({ where: { organizationId: actor.organizationId, assetId: id, source: { not: 'SCHEDULED' }, createdAt: { gte: since } } }),
-      tx.workOrder.findMany({
+    const [total, corrective, resolved] = await inSequence(
+      () => tx.workOrder.count({ where: { organizationId: actor.organizationId, assetId: id } }),
+      () => tx.workOrder.count({ where: { organizationId: actor.organizationId, assetId: id, source: { not: 'SCHEDULED' }, createdAt: { gte: since } } }),
+      () => tx.workOrder.findMany({
         where: { organizationId: actor.organizationId, assetId: id, resolutionSubmittedAt: { not: null }, resolvedAt: { not: null } },
         select: { cycleStartedAt: true, resolutionSubmittedAt: true },
       }),
-    ]);
+    );
     const mins = resolved.map((w) => (w.resolutionSubmittedAt!.getTime() - w.cycleStartedAt.getTime()) / 60_000);
     return {
       ...summary!,

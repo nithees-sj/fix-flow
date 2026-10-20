@@ -16,6 +16,7 @@ import { RealtimePublisher } from '../../infra/realtime.publisher.js';
 import { DATABASE } from '../../infra/tokens.js';
 import { OrganizationsService } from '../organizations/organizations.service.js';
 import { WorkOrderQueryService } from '../work-orders/work-order-query.service.js';
+import { inSequence } from '../../common/sequential.js';
 
 const memberInclude = {
   user: { select: { id: true, name: true, email: true, lastLoginAt: true } },
@@ -71,16 +72,16 @@ export class MembersService {
           ? { OR: [{ user: { name: { contains: q.q, mode: 'insensitive' } } }, { user: { email: { contains: q.q, mode: 'insensitive' } } }, { jobTitle: { contains: q.q, mode: 'insensitive' } }] }
           : {}),
       };
-      const [rows, total] = await Promise.all([
-        tx.membership.findMany({
+      const [rows, total] = await inSequence(
+        () => tx.membership.findMany({
           where,
           include: memberInclude,
           orderBy: [{ status: 'asc' }, { role: 'asc' }, { user: { name: 'asc' } }],
           skip: (q.page - 1) * q.pageSize,
           take: q.pageSize,
         }),
-        tx.membership.count({ where }),
-      ]);
+        () => tx.membership.count({ where }),
+      );
       const open = await this.openJobsByUser(tx, actor.organizationId, rows.map((r) => r.userId));
       return {
         data: rows.map((r) => this.toDto(r, open.get(r.userId) ?? 0)),
